@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MossBox</title>
+
+<!-- ===== STYLES ===== -->
+<link rel="stylesheet" href="css/variables.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/menus.css" />
+<link rel="stylesheet" href="css/hud.css" />
+<link rel="stylesheet" href="css/inventory.css" />
+
+<!-- ===== THREE.JS (renderer engine) ===== -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <!-- Custom OS-level cursor replacement (glowing circle) -->
+  <div id="custom-cursor"></div>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div id="main-menu" class="screen">
+    <canvas id="menu-bg-canvas"></canvas>
+    <div class="menu-panel main-panel">
+      <h1 class="game-logo">MossBox</h1>
+      <button class="btn clacky" id="btn-play">Play</button>
+      <button class="btn clacky" id="btn-settings">Settings</button>
+      <button class="btn clacky" id="btn-about">About</button>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS MENU ============ -->
+  <div id="settings-menu" class="screen hidden">
+    <div class="menu-panel settings-panel">
+      <h2>Settings</h2>
+
+      <div class="setting-row">
+        <label>Render Distance</label>
+        <input type="range" id="setting-render-distance" min="2" max="12" step="1" />
+        <span class="setting-value" id="val-render-distance"></span>
+      </div>
+
+      <div class="setting-row">
+        <label>Field of View</label>
+        <input type="range" id="setting-fov" min="60" max="110" step="1" />
+        <span class="setting-value" id="val-fov"></span>
+      </div>
+
+      <div class="setting-row">
+        <label>Master Volume</label>
+        <input type="range" id="setting-vol-master" min="0" max="100" step="1" />
+        <span class="setting-value" id="val-vol-master"></span>
+      </div>
+
+      <div class="setting-row">
+        <label>Music Volume</label>
+        <input type="range" id="setting-vol-music" min="0" max="100" step="1" />
+        <span class="setting-value" id="val-vol-music"></span>
+      </div>
+
+      <div class="setting-row">
+        <label>SFX Volume</label>
+        <input type="range" id="setting-vol-sfx" min="0" max="100" step="1" />
+        <span class="setting-value" id="val-vol-sfx"></span>
+      </div>
+
+      <div class="menu-btn-row">
+        <button class="btn clacky" id="btn-open-keybinds">Keybinds</button>
+        <button class="btn clacky" id="btn-settings-back">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KEYBINDS MENU ============ -->
+  <div id="keybinds-menu" class="screen hidden">
+    <div class="menu-panel keybinds-panel">
+      <h2>Keybinds</h2>
+      <div class="keybind-warning hidden" id="keybind-conflict-warning">
+        That key is already assigned to another action!
+      </div>
+      <div id="keybind-list" class="keybind-list"></div>
+      <div class="menu-btn-row">
+        <button class="btn clacky" id="btn-keybinds-reset">Reset to Default</button>
+        <button class="btn clacky" id="btn-keybinds-back">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAUSE MENU (in-game) ============ -->
+  <div id="pause-menu" class="screen hidden">
+    <div class="menu-panel pause-panel">
+      <h2>Paused</h2>
+      <button class="btn clacky" id="btn-resume">Back to Game</button>
+      <button class="btn clacky" id="btn-pause-settings">Settings</button>
+      <button class="btn clacky" id="btn-quit">Quit to Main Menu</button>
+    </div>
+  </div>
+
+  <!-- ============ GAME ROOT ============ -->
+  <div id="game-root" class="hidden">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Crosshair -->
+    <div id="crosshair">+</div>
+
+    <!-- Block hover outline is drawn in WebGL, not DOM -->
+
+    <!-- HUD -->
+    <div id="hud">
+      <div id="hearts-row" class="hud-row"></div>
+      <div id="hunger-row" class="hud-row"></div>
+      <div id="hotbar" class="hud-row"></div>
+    </div>
+
+    <!-- Inventory screen (press E) -->
+    <div id="inventory-screen" class="screen hidden">
+      <div class="menu-panel inventory-panel">
+        <div class="crafting-area">
+          <div class="crafting-grid" id="crafting-grid"></div>
+          <div class="crafting-arrow">&#8594;</div>
+          <div class="crafting-output" id="crafting-output"></div>
+        </div>
+        <div class="armor-and-player">
+          <div class="armor-slots" id="armor-slots"></div>
+        </div>
+        <div class="inventory-grid" id="inventory-grid"></div>
+        <div class="hotbar-grid" id="inventory-hotbar-grid"></div>
+      </div>
+    </div>
+
+    <!-- Workstation UIs (Furnace / Crafting Table / Chest) -->
+    <div id="workstation-screen" class="screen hidden">
+      <div class="menu-panel workstation-panel" id="workstation-panel"></div>
+    </div>
+  </div>
+
+  <!-- ===== APP MODULES (load order matters: config -> engine -> player -> ui -> main) ===== -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
