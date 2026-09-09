@@ -1,0 +1,168 @@
+/* =========================================================
+   MossBox — Menus (Main, Settings, Keybinds, Pause)
+   ========================================================= */
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 30%, #2b2f38 0%, #14161b 100%);
+}
+
+#pause-menu {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.menu-panel {
+  position: relative;
+  z-index: 2;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  padding: 32px 40px;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  opacity: 0;
+  transform: translateY(18px) scale(0.97);
+  animation: panel-in var(--transition-slow) var(--ease-soft) forwards;
+}
+
+@keyframes panel-in {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.game-logo {
+  text-align: center;
+  font-size: 3rem;
+  margin: 0 0 12px 0;
+  text-shadow: var(--text-shadow);
+  color: #bfe7a8; /* mossy tint */
+  letter-spacing: 1px;
+}
+
+.menu-panel h2 {
+  text-align: center;
+  margin: 0 0 6px 0;
+  text-shadow: var(--text-shadow);
+}
+
+/* ---- Clacky buttons ---- */
+.btn {
+  font-family: var(--font-main);
+  font-size: 1rem;
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  border: none;
+  border-top: 2px solid var(--btn-border-top);
+  border-bottom: 3px solid var(--btn-border-bottom);
+  border-radius: var(--btn-radius);
+  padding: 12px 20px;
+  cursor: none;
+  text-shadow: var(--text-shadow);
+  transition: background var(--transition-fast) var(--ease-soft),
+              transform 60ms var(--ease-soft),
+              border-bottom-width 60ms var(--ease-soft),
+              box-shadow var(--transition-fast) var(--ease-soft);
+}
+
+.btn.clacky:hover {
+  background: var(--btn-bg-hover);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.15);
+}
+
+/* the "clack" — quick squash on press */
+.btn.clacky:active {
+  background: var(--btn-bg-active);
+  border-bottom-width: 1px;
+  transform: translateY(2px);
+}
+
+.menu-btn-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* ---- Settings ---- */
+.settings-panel { min-width: 420px; }
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting-row label { text-shadow: var(--text-shadow); }
+
+.setting-row input[type="range"] {
+  -webkit-appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.15);
+  cursor: none;
+}
+.setting-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255,255,255,0.5);
+  cursor: none;
+  transition: transform 120ms var(--ease-soft);
+}
+.setting-row input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.setting-value { text-align: right; opacity: 0.85; }
+
+/* ---- Keybinds ---- */
+.keybinds-panel { min-width: 460px; max-height: 80vh; }
+
+.keybind-list {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.keybind-row-label { align-self: center; text-shadow: var(--text-shadow); }
+
+.keybind-key-btn {
+  min-width: 96px;
+}
+
+.keybind-key-btn.listening {
+  background: var(--accent-warn);
+  animation: pulse 700ms infinite alternate;
+}
+
+@keyframes pulse {
+  from { box-shadow: 0 0 4px rgba(255,107,107,0.4); }
+  to   { box-shadow: 0 0 16px rgba(255,107,107,0.9); }
+}
+
+.keybind-warning {
+  background: rgba(255, 107, 107, 0.18);
+  border: 1px solid var(--accent-warn);
+  color: #ffd7d7;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+  animation: flash-warn 500ms ease-in-out 2;
+}
+
+@keyframes flash-warn {
+  0%, 100% { background: rgba(255, 107, 107, 0.18); }
+  50% { background: rgba(255, 107, 107, 0.4); }
+}

@@ -1,0 +1,46 @@
+/* =========================================================
+   MossBox — Theme Variables
+   Centralized design tokens. Change these to re-skin the
+   entire UI without touching component stylesheets.
+   ========================================================= */
+:root {
+  /* Panel surfaces (soft Minecraft-inspired stone/grey) */
+  --panel-bg: rgba(30, 30, 36, 0.72);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-radius: 14px;
+
+  /* Buttons */
+  --btn-bg: #5b5b62;
+  --btn-bg-hover: #71717a;
+  --btn-bg-active: #45454b;
+  --btn-border-top: rgba(255, 255, 255, 0.35);
+  --btn-border-bottom: rgba(0, 0, 0, 0.45);
+  --btn-text: #f3f3f0;
+  --btn-radius: 8px;
+
+  /* Accent / highlight */
+  --accent-glow: rgba(255, 255, 255, 0.85);
+  --accent-warn: #ff6b6b;
+
+  /* HUD */
+  --slot-bg: rgba(20, 20, 24, 0.55);
+  --slot-border: rgba(255, 255, 255, 0.15);
+  --slot-selected: rgba(255, 255, 255, 0.9);
+  --heart-color: #ff8a8a;
+  --heart-empty: rgba(255, 255, 255, 0.12);
+  --hunger-color: #c99a5b;
+
+  /* Typography */
+  --font-main: 'Segoe UI', system-ui, sans-serif;
+  --text-color: #f0f0ec;
+  --text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+
+  /* Motion */
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 120ms;
+  --transition-med: 260ms;
+  --transition-slow: 420ms;
+
+  /* Fog / sky (overridden per-biome by JS via inline style on root) */
+  --sky-color: #bcdcff;
+}
