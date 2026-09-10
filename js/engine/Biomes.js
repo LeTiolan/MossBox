@@ -62,21 +62,21 @@ export function buildColumn(biome, surfaceY) {
 
 export const BIOME_SURFACE_DECOR = {
   [BIOME.PLAINS]: [
-    { block: 'tall_grass', chance: 0.12 },
-    { block: 'flower_red', chance: 0.015 },
-    { block: 'flower_yellow', chance: 0.015 },
-    { block: 'pumpkin', chance: 0.003 },
+    { block: 'tall_grass', chance: 0.03 },
+    { block: 'flower_red', chance: 0.004 },
+    { block: 'flower_yellow', chance: 0.004 },
+    { block: 'pumpkin', chance: 0.002 },
   ],
   [BIOME.FOREST]: [
     { block: 'wood_log', chance: 0.02, isTreeTrunk: true },
-    { block: 'tall_grass', chance: 0.06 },
+    { block: 'tall_grass', chance: 0.015 },
   ],
   [BIOME.DESERT]: [
     { block: 'cactus', chance: 0.01 },
-    { block: 'dead_bush', chance: 0.02 },
+    { block: 'dead_bush', chance: 0.008 },
   ],
   [BIOME.LAKE]: [
-    { block: 'sugar_cane', chance: 0.05 },
+    { block: 'sugar_cane', chance: 0.02 },
   ],
 };
 
