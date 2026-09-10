@@ -11,8 +11,17 @@ import { getBlock } from '../config/blocks.js';
 const WALK_SPEED = 4.3;
 const SPRINT_SPEED = 6.5;
 const SNEAK_SPEED = 2.0;
-const JUMP_VELOCITY = 8.4;
-const GRAVITY = -24;
+const JUMP_VELOCITY = 7.6;
+const GRAVITY = -30;
+
+// Momentum tuning: how fast horizontal velocity chases the target speed.
+// Ground acceleration is snappy (Minecraft-like directness); air control is
+// noticeably looser, since you can't fully redirect momentum mid-air. This
+// replaces instantly-set velocity, which is what made movement feel
+// weightless — real acceleration/deceleration gives it mass.
+const GROUND_ACCEL = 40;
+const AIR_ACCEL = 8;
+const GROUND_FRICTION = 10; // how fast you decelerate to a stop with no input
 
 export class Controls {
   constructor(camera, domElement, world) {
@@ -89,8 +98,17 @@ export class Controls {
 
     if (desired.lengthSq() > 0) desired.normalize().multiplyScalar(speed);
 
-    this.velocity.x = desired.x;
-    this.velocity.z = desired.z;
+    // Chase the target horizontal velocity rather than snapping to it —
+    // this is what gives movement actual weight/momentum. Ground and air
+    // use different accel rates; with no input, ground friction brings you
+    // to a stop instead of halting instantly.
+    const hasInput = desired.lengthSq() > 0.0001;
+    const rate = this.onGround
+      ? (hasInput ? GROUND_ACCEL : GROUND_FRICTION)
+      : AIR_ACCEL;
+    const t = Math.min(1, rate * dt);
+    this.velocity.x += (desired.x - this.velocity.x) * t;
+    this.velocity.z += (desired.z - this.velocity.z) * t;
 
     // Gravity + jump
     this.velocity.y += GRAVITY * dt;
