@@ -22,6 +22,7 @@ import { initCustomCursor } from './ui/CustomCursor.js';
 import { keybindManager } from './config/keybinds.js';
 import { settings } from './config/settings.js';
 import { audio } from './audio/AudioManager.js';
+import { showToast } from './ui/Toast.js';
 
 // ---------------------------------------------------------------
 // Bootstrap
@@ -161,6 +162,12 @@ function createGame() {
       controls.lock();
     },
   });
+
+  controls.onFallDamage = (damage) => {
+    hud.setHealth(hud.health - damage);
+    audio.play('player.hurt');
+    showToast(`-${damage} (fall damage)`);
+  };
 
   const openWorkstation = (type) => {
     controls.enabled = false;
