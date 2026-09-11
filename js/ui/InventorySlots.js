@@ -1,5 +1,5 @@
 /* =========================================================
-   MossBox — Inventory Slot Helpers
+   MossBox â€” Inventory Slot Helpers
    Shared between InventoryUI (the full inventory screen) and
    any workstation screen (Crafting Table, Furnace, Chest) so
    the player's backpack + hotbar can be rendered and clicked
@@ -9,6 +9,35 @@
    ========================================================= */
 
 import { getBlock } from '../config/blocks.js';
+
+let heldIconEl = null;
+function getHeldIconEl() {
+  if (!heldIconEl) heldIconEl = document.getElementById('held-item-icon');
+  return heldIconEl;
+}
+
+// One shared listener keeps the icon glued to the cursor whenever it's
+// visible; it's a no-op while nothing is held, so this is safe to run
+// unconditionally for the lifetime of the page.
+document.addEventListener('mousemove', (e) => {
+  const el = getHeldIconEl();
+  if (!el || el.classList.contains('hidden')) return;
+  el.style.left = `${e.clientX}px`;
+  el.style.top = `${e.clientY}px`;
+});
+
+/** Shows/hides and re-colors the floating held-item icon to match `held.current`. */
+export function syncHeldCursorIcon(held) {
+  const el = getHeldIconEl();
+  if (!el) return;
+  if (held.current) {
+    const block = getBlock(held.current.item);
+    el.style.backgroundColor = block?.color || '#999';
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
 
 export function buildSlotEl(stack, onClick) {
   const el = document.createElement('div');
@@ -47,6 +76,8 @@ export function renderPlayerGrids(backpackEl, hotbarEl, inventory, held, onAnyCh
     slots[i] = prev;
     onAnyChange();
   };
+
+  syncHeldCursorIcon(held);
 
   backpackEl.innerHTML = '';
   inventory.backpack.forEach((stack, i) => {
