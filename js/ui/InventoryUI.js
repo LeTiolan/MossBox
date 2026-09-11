@@ -1,5 +1,5 @@
 /* =========================================================
-   MossBox — Inventory Screen UI
+   MossBox â€” Inventory Screen UI
    The full-screen inventory opened with 'E'. Renders the
    backpack grid, armor slots, a mirrored hotbar, and the 2x2
    crafting grid. Backpack/hotbar rendering is shared with
@@ -8,7 +8,9 @@
    ========================================================= */
 
 import { matchRecipe, consumeOne } from '../engine/Crafting.js';
-import { buildSlotEl, renderPlayerGrids } from './InventorySlots.js';
+import { buildSlotEl, renderPlayerGrids, syncHeldCursorIcon } from './InventorySlots.js';
+import { getBlock } from '../config/blocks.js';
+import { showToast } from './Toast.js';
 
 export class InventoryUI {
   constructor(inventory) {
@@ -27,7 +29,17 @@ export class InventoryUI {
   }
 
   open() { this.screenEl.classList.remove('hidden'); this.render(); }
-  close() { this.screenEl.classList.add('hidden'); }
+
+  close() {
+    // If an item was mid-pickup when the screen closes, return it rather
+    // than letting it silently vanish.
+    if (this.held.current) {
+      this.inventory.addItem(this.held.current.item, this.held.current.count);
+      this.held.current = null;
+      syncHeldCursorIcon(this.held);
+    }
+    this.screenEl.classList.add('hidden');
+  }
   isOpen() { return !this.screenEl.classList.contains('hidden'); }
   toggle() { this.isOpen() ? this.close() : this.open(); }
 
@@ -69,6 +81,7 @@ export class InventoryUI {
       if (!result) return;
       this.inventory.addItem(result.item, result.count);
       consumeOne(this.inventory.craftingGrid);
+      showToast(`Crafted ${getBlock(result.item)?.name || result.item}`);
       this.render();
     });
     this.craftingOutputEl.appendChild(slotEl);
