@@ -93,6 +93,37 @@
   text-shadow: 1px 1px 0 #000;
 }
 
+/* ---- Toast notifications ---- */
+/* Brief pop-up messages (item pickups, etc.) that appear just above the
+   hotbar and fade out on their own. See ui/Toast.js showToast(). */
+#toast-container {
+  order: -1; /* sits above hearts/hunger/hotbar within the #hud column */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  animation: toast-in-out 1.8s ease forwards;
+}
+
+@keyframes toast-in-out {
+  0%   { opacity: 0; transform: translateY(6px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  75%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
 /* ---- Crosshair ---- */
 #crosshair {
   position: fixed;
