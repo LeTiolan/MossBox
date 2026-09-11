@@ -1,23 +1,44 @@
 /* =========================================================
    MossBox — Chunk Manager
-   Keeps the set of rendered chunk meshes in sync with the
-   player's position and the current render-distance setting.
-   Handles the "unload hidden/rear chunks" side of the render
-   distance tech described in the design doc; true frustum
-   culling is delegated to Three.js's own per-object culling
-   plus the coarse radius check here.
+   Keeps loaded chunks in one of three explicit phases, the
+   same three Minecraft itself uses:
+
+     1. VISIBLE   — in the camera's view frustum. Rendered.
+     2. PAUSED    — within render distance, mesh built and
+                    kept in memory, but currently out of view
+                    (behind the player, etc). group.visible is
+                    set false so Three.js skips it in the
+                    render list entirely — this is the "not
+                    rendered at all" behavior, not just relying
+                    on per-mesh bounding-sphere culling.
+     3. UNLOADED  — outside render distance. Mesh geometry is
+                    disposed and the chunk is dropped from
+                    memory entirely; re-entering it regenerates
+                    from the world seed + any saved edits.
+
+   There's no per-chunk simulation yet (fluid flow, mob AI) to
+   gate on phase 1 vs 2, but the phases themselves are real and
+   in place — a future simulation system can check
+   `group.visible` (or a dedicated phase field) to decide what
+   to tick, without touching this file's load/unload logic.
    ========================================================= */
 
 import { CHUNK_SIZE } from './World.js';
 import { ChunkMesher } from './ChunkMesher.js';
 
 export class ChunkManager {
-  constructor(world, scene, renderDistanceChunks = 6) {
+  constructor(world, scene, renderDistanceChunks = 6, camera = null) {
     this.world = world;
     this.scene = scene;
+    this.camera = camera;
     this.renderDistance = renderDistanceChunks;
-    this.loadedMeshes = new Map(); // "cx,cz" -> THREE.Group
+    this.loadedMeshes = new Map(); // "cx,cz" -> THREE.Group (phase 1 or 2)
     this._lastPlayerChunk = { cx: null, cz: null };
+
+    // Reused across frames to avoid allocating a new Frustum/Matrix4 every
+    // visibility check.
+    this._frustum = new THREE.Frustum();
+    this._projScreenMatrix = new THREE.Matrix4();
   }
 
   setRenderDistance(chunks) {
@@ -25,14 +46,25 @@ export class ChunkManager {
     this._lastPlayerChunk = { cx: null, cz: null }; // force refresh
   }
 
-  /** Call every frame (cheap early-out if the player hasn't crossed a chunk boundary). */
+  /**
+   * Call every frame. Load/unload (phase 1|2 <-> phase 3) only runs when
+   * the player crosses a chunk boundary — that part is unchanged from
+   * before. Visibility (phase 1 <-> phase 2) is re-evaluated every frame
+   * regardless, since the camera can rotate without the player moving.
+   */
   update(playerWorldX, playerWorldZ) {
     const cx = Math.floor(playerWorldX / CHUNK_SIZE);
     const cz = Math.floor(playerWorldZ / CHUNK_SIZE);
 
-    if (cx === this._lastPlayerChunk.cx && cz === this._lastPlayerChunk.cz) return;
-    this._lastPlayerChunk = { cx, cz };
+    if (cx !== this._lastPlayerChunk.cx || cz !== this._lastPlayerChunk.cz) {
+      this._lastPlayerChunk = { cx, cz };
+      this._updateLoadedChunks(cx, cz);
+    }
 
+    this._updateVisibility();
+  }
+
+  _updateLoadedChunks(cx, cz) {
     const wanted = new Set();
     const r = this.renderDistance;
 
@@ -51,6 +83,29 @@ export class ChunkManager {
     for (const key of [...this.loadedMeshes.keys()]) {
       if (!wanted.has(key)) this._unloadChunk(key);
     }
+  }
+
+  /** Phase 1 <-> phase 2: toggle each loaded chunk's visibility against the camera frustum. */
+  _updateVisibility() {
+    if (!this.camera) return;
+
+    this._projScreenMatrix.multiplyMatrices(
+      this.camera.projectionMatrix,
+      this.camera.matrixWorldInverse
+    );
+    this._frustum.setFromProjectionMatrix(this._projScreenMatrix);
+
+    for (const group of this.loadedMeshes.values()) {
+      group.visible = this._frustum.intersectsBox(this._boundingBoxFor(group));
+    }
+  }
+
+  /** Chunk bounds never change after the mesh is built — compute once, cache on the group. */
+  _boundingBoxFor(group) {
+    if (!group.userData.boundingBox) {
+      group.userData.boundingBox = new THREE.Box3().setFromObject(group);
+    }
+    return group.userData.boundingBox;
   }
 
   _loadChunk(cx, cz, key) {
