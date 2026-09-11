@@ -15,7 +15,13 @@ export const BIOME = {
 
 const SEA_LEVEL = 64;
 
-/** Picks a biome id from a low-frequency noise value in [-1, 1]. */
+/**
+ * Picks a biome from a low-frequency noise value in [-1, 1].
+ * SUPERSEDED: World.js no longer calls this — land-biome selection now
+ * comes from BiomeGenerator.js's cellular region map (classic pre-1.18-
+ * style hard-edged regions instead of this smooth moisture gradient).
+ * Left in place as a simpler reference implementation / fallback.
+ */
 export function pickBiome(moistureNoise, heightNoise) {
   if (heightNoise < -0.25) return BIOME.LAKE;
   if (moistureNoise < -0.35) return BIOME.DESERT;
@@ -30,7 +36,7 @@ export function pickBiome(moistureNoise, heightNoise) {
  */
 export function buildColumn(biome, surfaceY) {
   const stack = [];
-  const top = Math.max(surfaceY, SEA_LEVEL - 4);
+  const top = surfaceY;
 
   switch (biome) {
     case BIOME.DESERT:
@@ -40,11 +46,11 @@ export function buildColumn(biome, surfaceY) {
       break;
 
     case BIOME.LAKE:
-      // Lakebed: sand/gravel/dirt shore blend, filled with water up to sea level.
+      // Lakebed material only — water itself is added by the universal
+      // sea-level fill below, same as any other biome that dips below it.
       stack.push({ y: top, block: 'sand' });
       for (let y = top - 1; y > top - 3; y--) stack.push({ y, block: 'gravel' });
       for (let y = top - 3; y >= 1; y--) stack.push({ y, block: 'stone' });
-      for (let y = top + 1; y <= SEA_LEVEL; y++) stack.push({ y, block: 'water' });
       break;
 
     case BIOME.FOREST:
@@ -54,6 +60,17 @@ export function buildColumn(biome, surfaceY) {
       for (let y = top - 1; y > top - 4; y--) stack.push({ y, block: 'dirt' });
       for (let y = top - 4; y >= 1; y--) stack.push({ y, block: 'stone' });
       break;
+  }
+
+  // Universal sea-level fill: ANY column whose actual surface sits below
+  // sea level gets water up to sea level — not just LAKE-tagged columns.
+  // This is what makes shorelines meet the water smoothly at biome
+  // boundaries instead of leaving a mismatched edge or an artificial flat
+  // shelf (the previous Math.max(surfaceY, SEA_LEVEL - 4) clamp above is
+  // gone for the same reason — it forced every biome's land up to a
+  // minimum height regardless of its real elevation).
+  if (top < SEA_LEVEL) {
+    for (let y = top + 1; y <= SEA_LEVEL; y++) stack.push({ y, block: 'water' });
   }
 
   stack.push({ y: 0, block: 'bedrock' });
@@ -68,7 +85,8 @@ export const BIOME_SURFACE_DECOR = {
     { block: 'pumpkin', chance: 0.002 },
   ],
   [BIOME.FOREST]: [
-    { block: 'wood_log', chance: 0.02, isTreeTrunk: true },
+    // Tree trunks are placed separately in World.js via a spaced grid,
+    // not this per-column chance roll — see TREE_CELL_SIZE there.
     { block: 'tall_grass', chance: 0.015 },
   ],
   [BIOME.DESERT]: [
