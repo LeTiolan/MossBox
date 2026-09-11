@@ -41,7 +41,7 @@ class TextureManager {
     const material = new THREE.MeshLambertMaterial({
       color: block?.color ? new THREE.Color(block.color) : 0xffffff,
       transparent: isTransparent || isCross,
-      opacity: isTransparent ? (block.fluid ? 0.75 : 0.85) : 1,
+      opacity: block?.opacity ?? (isTransparent ? (block.fluid ? 0.75 : 0.85) : 1),
       side: (isTransparent || isCross) ? THREE.DoubleSide : THREE.FrontSide,
       alphaTest: isCross ? 0.5 : 0,
     });
