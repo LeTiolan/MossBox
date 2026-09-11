@@ -31,6 +31,11 @@ const WATER_GRAVITY = -4;
 const SWIM_SPEED = 3;
 const SWIM_MOVE_MULTIPLIER = 0.6;
 
+// Fall damage: only kicks in above this fall speed (roughly a ~2-block
+// fall is safe, same spirit as vanilla), scaled into HUD health points.
+const FALL_DAMAGE_MIN_SPEED = 11;
+const FALL_DAMAGE_PER_SPEED = 0.7;
+
 export class Controls {
   constructor(camera, domElement, world) {
     this.camera = camera;
@@ -44,6 +49,10 @@ export class Controls {
     this.onGround = false;
     this.isLocked = false;
     this.enabled = false;
+
+    // Set from outside (main.js) to react to a hard landing — see the
+    // fall-damage calculation in _moveWithCollision() below.
+    this.onFallDamage = null;
 
     this._keysDown = new Set();
     this._bindEvents();
@@ -189,7 +198,14 @@ export class Controls {
           ].some(([cx, cz]) => this._isSolid(cx, checkY, cz));
 
           if (blocked) {
-            if (step < 0) this.onGround = true;
+            if (step < 0) {
+              this.onGround = true;
+              const fallSpeed = -this.velocity.y; // velocity.y is negative while falling
+              if (fallSpeed > FALL_DAMAGE_MIN_SPEED) {
+                const damage = Math.round((fallSpeed - FALL_DAMAGE_MIN_SPEED) * FALL_DAMAGE_PER_SPEED);
+                if (damage > 0) this.onFallDamage?.(damage);
+              }
+            }
             this.velocity.y = 0;
             break; // stop sub-stepping this axis once blocked
           }
