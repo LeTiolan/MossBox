@@ -148,7 +148,7 @@ function createGame() {
   });
 
   const world = new World();
-  const chunkManager = new ChunkManager(world, renderer.scene, settings.get('renderDistance'));
+  const chunkManager = new ChunkManager(world, renderer.scene, settings.get('renderDistance'), renderer.camera);
 
   const controls = new Controls(renderer.camera, canvas, world);
   const inventory = new Inventory();
