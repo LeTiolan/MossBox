@@ -8,7 +8,8 @@
    ========================================================= */
 
 import { SimplexNoise } from './Noise.js';
-import { pickBiome, buildColumn, BIOME_SURFACE_DECOR, SEA_LEVEL } from './Biomes.js';
+import { pickBiome, buildColumn, BIOME_SURFACE_DECOR, SEA_LEVEL, BIOME } from './Biomes.js';
+import { BiomeGenerator } from './BiomeGenerator.js';
 import { getBlock } from '../config/blocks.js';
 
 export const CHUNK_SIZE = 16;
@@ -29,12 +30,18 @@ export class World {
   constructor(seed = Date.now() & 0xffffffff) {
     this.seed = seed;
     this.heightNoise = new SimplexNoise(seed);
-    this.moistureNoise = new SimplexNoise(seed + 1);
     this.caveNoise = new SimplexNoise(seed + 2);
     this.oreNoise = new SimplexNoise(seed + 3);
+    this.biomeGenerator = new BiomeGenerator(seed + 4);
 
     // Loaded chunk data: "cx,cz" -> Uint16Array(CHUNK_SIZE*WORLD_HEIGHT*CHUNK_SIZE)
     this.chunks = new Map();
+
+    // "cx,cz" -> { minY, maxY } of the lowest/highest non-air block in that
+    // chunk. Lets ChunkMesher skip scanning the huge stretches of empty
+    // sky and (once we're several blocks under the surface) featureless
+    // buried stone that every chunk otherwise has — see buildChunkMesh().
+    this.chunkBounds = new Map();
 
     // Player-modified blocks only, keyed "x,y,z" -> blockId (0 = air/removed).
     // This is the only thing that gets persisted to disk.
@@ -76,7 +83,35 @@ export class World {
 
     const data = this._generateChunk(cx, cz);
     this.chunks.set(key, data);
+    this.chunkBounds.set(key, this._computeBounds(data));
     return data;
+  }
+
+  /** Single flat pass over the chunk's block ids to find its non-air y-range. */
+  _computeBounds(data) {
+    let minY = -1;
+    let maxY = -1;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] === 0) continue;
+      const y = Math.floor(i / (CHUNK_SIZE * CHUNK_SIZE));
+      if (minY === -1 || y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    return { minY, maxY };
+  }
+
+  /**
+   * Y-range actually worth meshing for this chunk: { minY, maxY } of its
+   * non-air blocks, or null if the chunk is fully empty. ChunkMesher uses
+   * this instead of always scanning 0..WORLD_HEIGHT, which is most of the
+   * per-chunk mesh-build cost — deep buried stone and the empty sky above
+   * the surface never need a face-culling check at all.
+   */
+  getChunkYRange(cx, cz) {
+    const key = this._chunkKey(cx, cz);
+    if (!this.chunks.has(key)) this.getOrGenerateChunk(cx, cz);
+    const bounds = this.chunkBounds.get(key);
+    return bounds && bounds.minY !== -1 ? bounds : null;
   }
 
   _generateChunk(cx, cz) {
@@ -92,7 +127,18 @@ export class World {
         const h = this.heightNoise.fbm2D(wx * 0.01, wz * 0.01, { octaves: 5 });
         const m = this.moistureNoise.fbm2D(wx * 0.008, wz * 0.008, { octaves: 3 });
         const biome = pickBiome(m, h);
-        const surfaceY = Math.floor(SEA_LEVEL + h * 24);
+
+        // Plains and Desert re-sample height with fewer octaves (less
+        // high-frequency jitter) and a much smaller amplitude, so they
+        // read as open, gently-rolling ground instead of sharing Forest's
+        // jagged hill noise. Forest/Lake keep the original full-detail h.
+        let heightSample = h;
+        let amplitude = 24;
+        if (biome === BIOME.PLAINS || biome === BIOME.DESERT) {
+          heightSample = this.heightNoise.fbm2D(wx * 0.01, wz * 0.01, { octaves: 2 });
+          amplitude = 6;
+        }
+        const surfaceY = Math.floor(SEA_LEVEL + heightSample * amplitude);
 
         const column = buildColumn(biome, surfaceY);
         for (const { y, block } of column) {
@@ -215,6 +261,19 @@ export class World {
     const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     this._setLocal(data, lx, y, lz, id);
+
+    // Keep the cached mesh-range in sync. Only ever expands it — if this
+    // was the chunk's only block at that y-level, the range stays a
+    // little wider than strictly necessary rather than shrinking, which
+    // is always safe (just a couple of extra empty layers to scan, never
+    // a missed block).
+    if (id !== 0) {
+      const key = this._chunkKey(cx, cz);
+      const bounds = this.chunkBounds.get(key) || { minY: -1, maxY: -1 };
+      if (bounds.minY === -1 || y < bounds.minY) bounds.minY = y;
+      if (y > bounds.maxY) bounds.maxY = y;
+      this.chunkBounds.set(key, bounds);
+    }
 
     if (persist) this.saveModifications();
   }
