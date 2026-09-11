@@ -8,6 +8,8 @@
 import { keybindManager } from '../config/keybinds.js';
 import { getBlock } from '../config/blocks.js';
 
+const WATER_ID = getBlock('water').id;
+
 const WALK_SPEED = 4.3;
 const SPRINT_SPEED = 6.5;
 const SNEAK_SPEED = 2.0;
@@ -22,6 +24,12 @@ const GRAVITY = -30;
 const GROUND_ACCEL = 40;
 const AIR_ACCEL = 8;
 const GROUND_FRICTION = 10; // how fast you decelerate to a stop with no input
+
+// Water physics: gentle sink instead of freefall, jump/sneak swim up/down,
+// both capped at a slow swim speed, and horizontal movement is slowed too.
+const WATER_GRAVITY = -4;
+const SWIM_SPEED = 3;
+const SWIM_MOVE_MULTIPLIER = 0.6;
 
 export class Controls {
   constructor(camera, domElement, world) {
@@ -80,6 +88,11 @@ export class Controls {
 
     let speed = sprinting ? SPRINT_SPEED : sneaking ? SNEAK_SPEED : WALK_SPEED;
 
+    // Water physics: check chest-height for whether we're currently
+    // swimming, and slow horizontal movement to match.
+    const inWater = this._isWater(this.position.x, this.position.y + 0.9, this.position.z);
+    if (inWater) speed *= SWIM_MOVE_MULTIPLIER;
+
     const moveDir = new THREE.Vector3();
     if (forward) moveDir.z -= 1;
     if (backward) moveDir.z += 1;
@@ -110,11 +123,20 @@ export class Controls {
     this.velocity.x += (desired.x - this.velocity.x) * t;
     this.velocity.z += (desired.z - this.velocity.z) * t;
 
-    // Gravity + jump
-    this.velocity.y += GRAVITY * dt;
-    if (wantsJump && this.onGround) {
-      this.velocity.y = JUMP_VELOCITY;
-      this.onGround = false;
+    // Gravity + jump — water gets its own gentler physics: a slow buoyant
+    // sink instead of freefall, with jump/sneak swimming up/down instead
+    // of only working while grounded.
+    if (inWater) {
+      this.velocity.y += WATER_GRAVITY * dt;
+      this.velocity.y = Math.max(-SWIM_SPEED, Math.min(SWIM_SPEED, this.velocity.y));
+      if (wantsJump) this.velocity.y = SWIM_SPEED;
+      else if (sneaking) this.velocity.y = -SWIM_SPEED;
+    } else {
+      this.velocity.y += GRAVITY * dt;
+      if (wantsJump && this.onGround) {
+        this.velocity.y = JUMP_VELOCITY;
+        this.onGround = false;
+      }
     }
 
     this._moveWithCollision(dt);
@@ -130,40 +152,75 @@ export class Controls {
     return !!block?.solid;
   }
 
+  _isWater(x, y, z) {
+    const id = this.world.getBlockId(Math.floor(x), Math.floor(y), Math.floor(z));
+    return id === WATER_ID;
+  }
+
   _moveWithCollision(dt) {
-    const step = (axis) => {
-      const delta = this.velocity[axis] * dt;
-      const next = this.position.clone();
-      next[axis] += delta;
+    const half = 0.3; // player horizontal half-width
+    const maxStep = 0.4; // sub-step cap so fast falls can't skip past a thin floor
 
-      const half = 0.3; // player horizontal half-width
-      const feet = next.y;
-      const head = next.y + 1.7;
+    const moveAxis = (axis, totalDelta) => {
+      let remaining = totalDelta;
 
-      let blocked = false;
-      if (axis === 'y') {
-        const checkY = delta < 0 ? Math.floor(feet) : Math.floor(head);
-        blocked = this._isSolid(next.x, checkY, next.z);
-        if (blocked) {
-          if (delta < 0) this.onGround = true;
-          this.velocity.y = 0;
-        } else if (delta < 0) {
-          this.onGround = false;
-        }
-      } else {
-        for (const dy of [0.1, 1.5]) {
-          if (this._isSolid(next.x + (axis === 'x' ? Math.sign(delta) * half : 0), feet + dy, next.z + (axis === 'z' ? Math.sign(delta) * half : 0))) {
-            blocked = true;
-            break;
+      while (Math.abs(remaining) > 1e-6) {
+        const step = Math.sign(remaining) * Math.min(Math.abs(remaining), maxStep);
+        remaining -= step;
+
+        const next = this.position.clone();
+        next[axis] += step;
+
+        let blocked = false;
+
+        if (axis === 'y') {
+          const feet = next.y;
+          const head = next.y + 1.7;
+          const checkY = step < 0 ? Math.floor(feet) : Math.floor(head);
+
+          // Check all four footprint corners, not just the center point —
+          // otherwise standing/falling right at a block edge can miss a
+          // block that's only under part of the player's body.
+          blocked = [
+            [next.x - half, next.z - half],
+            [next.x + half, next.z - half],
+            [next.x - half, next.z + half],
+            [next.x + half, next.z + half],
+          ].some(([cx, cz]) => this._isSolid(cx, checkY, cz));
+
+          if (blocked) {
+            if (step < 0) this.onGround = true;
+            this.velocity.y = 0;
+            break; // stop sub-stepping this axis once blocked
           }
+          if (step < 0) this.onGround = false;
+          this.position.y = next.y;
+        } else {
+          // Check both the leading edge (direction of travel) AND the full
+          // perpendicular half-width, at two heights — checking only the
+          // leading edge let diagonal movement clip through corners.
+          const feet = this.position.y;
+          const edgeOffset = Math.sign(step) * half;
+
+          outer: for (const heightOffset of [0.1, 1.5]) {
+            for (const perpOffset of [-half, half]) {
+              const testX = axis === 'x' ? next.x + edgeOffset : next.x + perpOffset;
+              const testZ = axis === 'z' ? next.z + edgeOffset : next.z + perpOffset;
+              if (this._isSolid(testX, feet + heightOffset, testZ)) {
+                blocked = true;
+                break outer;
+              }
+            }
+          }
+
+          if (blocked) break; // stop sub-stepping this axis
+          this.position[axis] = next[axis];
         }
       }
-
-      if (!blocked) this.position[axis] = next[axis];
     };
 
-    step('x');
-    step('z');
-    step('y');
+    moveAxis('x', this.velocity.x * dt);
+    moveAxis('z', this.velocity.z * dt);
+    moveAxis('y', this.velocity.y * dt);
   }
 }
