@@ -8,7 +8,7 @@
    ========================================================= */
 
 import { SimplexNoise } from './Noise.js';
-import { pickBiome, buildColumn, BIOME_SURFACE_DECOR, SEA_LEVEL, BIOME } from './Biomes.js';
+import { buildColumn, BIOME_SURFACE_DECOR, SEA_LEVEL, BIOME } from './Biomes.js';
 import { BiomeGenerator } from './BiomeGenerator.js';
 import { getBlock } from '../config/blocks.js';
 
@@ -23,6 +23,30 @@ const ORE_RULES = [
   { block: 'diamond_ore', minY: 5,  maxY: 15,  attemptsPerChunk: 1,  veinMin: 1,  veinMax: 4  },
 ];
 
+// Tree spacing: one candidate trunk position per cell, so trees keep a
+// real minimum distance apart instead of an independent per-column roll.
+const TREE_CELL_SIZE = 7;
+const TREE_CELL_CHANCE = 0.4; // fraction of cells that actually get a tree
+
+// Cavern wall ore seeding: which ore each roll can turn a cavern-adjacent
+// stone block into, and how likely any single wall cell is to seed at
+// all. Diamond is weighted much higher here than its normal vein rate —
+// this is specifically what makes caverns read as "richer" than tunnels.
+const CAVERN_ORE_CHANCE = 0.09;
+const CAVERN_ORE_WEIGHTS = [
+  { block: 'coal_ore', weight: 30 },
+  { block: 'iron_ore', weight: 30 },
+  { block: 'gold_ore', weight: 20 },
+  { block: 'diamond_ore', weight: 20 },
+];
+const CAVERN_ORE_TOTAL_WEIGHT = CAVERN_ORE_WEIGHTS.reduce((s, o) => s + o.weight, 0);
+
+// The 6 face-adjacent neighbors of a carved cavern cell — checked for
+// stone to seed ore onto the cavern's walls.
+const CAVERN_WALL_OFFSETS = [
+  [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+];
+
 const SAVE_KEY = 'mossbox_world_v1';
 
 export class World {
@@ -33,6 +57,7 @@ export class World {
     this.caveNoise = new SimplexNoise(seed + 2);
     this.oreNoise = new SimplexNoise(seed + 3);
     this.biomeGenerator = new BiomeGenerator(seed + 4);
+    this.cavernNoise = new SimplexNoise(seed + 5); // large rare open-cavern pockets
 
     // Loaded chunk data: "cx,cz" -> Uint16Array(CHUNK_SIZE*WORLD_HEIGHT*CHUNK_SIZE)
     this.chunks = new Map();
@@ -125,8 +150,15 @@ export class World {
         const wz = cz * CHUNK_SIZE + lz;
 
         const h = this.heightNoise.fbm2D(wx * 0.01, wz * 0.01, { octaves: 5 });
-        const m = this.moistureNoise.fbm2D(wx * 0.008, wz * 0.008, { octaves: 3 });
-        const biome = pickBiome(m, h);
+
+        // Lake placement stays tied to actual terrain height (a real local
+        // dip), not the cellular region map below — otherwise a "Lake"
+        // region could land on a hilltop with no water anywhere near it.
+        // Land biomes (Plains/Forest/Desert) come from BiomeGenerator's
+        // jittered-Voronoi regions: classic pre-1.18-style hard-edged,
+        // irregularly-shaped biome blobs instead of a smooth blended
+        // gradient. See BiomeGenerator.js for why.
+        const biome = h < -0.25 ? BIOME.LAKE : this.biomeGenerator.getBiome(wx, wz);
 
         // Plains and Desert re-sample height with fewer octaves (less
         // high-frequency jitter) and a much smaller amplitude, so they
@@ -146,32 +178,84 @@ export class World {
           this._setLocal(data, lx, y, lz, getBlock(block).id);
         }
 
-        // Surface decoration (grass/flowers/trees/cacti)
+        // Surface decoration (grass/flowers/cacti) — trees are handled
+        // separately below via a spaced grid, not this per-column roll.
         const decorTable = BIOME_SURFACE_DECOR[biome] || [];
         const decorRoll = this._hashRandom(wx, wz, 99);
         let acc = 0;
         for (const d of decorTable) {
           acc += d.chance;
           if (decorRoll < acc) {
-            if (d.isTreeTrunk) {
-              this._placeTree(data, lx, surfaceY + 1, lz);
-            } else {
-              this._setLocal(data, lx, surfaceY + 1, lz, getBlock(d.block).id);
-            }
+            this._setLocal(data, lx, surfaceY + 1, lz, getBlock(d.block).id);
             break;
           }
         }
 
-        // Caves: carve "swiss cheese" tunnels through stone via 3D noise.
-        for (let y = 5; y < Math.min(surfaceY - 2, WORLD_HEIGHT); y++) {
-          const density = this.caveNoise.noise3D(wx * 0.06, y * 0.06, wz * 0.06);
-          if (density > 0.55) {
-            const current = this._getLocal(data, lx, y, lz);
-            if (current === getBlock('stone').id || current === getBlock('dirt').id) {
-              const fill = y <= 10 ? getBlock('lava').id : y <= 60 ? getBlock('water').id : airId;
-              // Only flood a fraction of carved cells so lakes don't consume entire caverns.
-              this._setLocal(data, lx, y, lz, density > 0.62 ? fill : airId);
-            }
+        // Trees: one candidate position per TREE_CELL_SIZE-block cell,
+        // jittered within it (same trick as BiomeGenerator's region
+        // jitter) — guarantees real minimum spacing between trunks,
+        // instead of the old per-column independent chance that let
+        // trees spawn right next to each other.
+        if (biome === BIOME.FOREST) {
+          const cellX = Math.floor(wx / TREE_CELL_SIZE);
+          const cellZ = Math.floor(wz / TREE_CELL_SIZE);
+          const jx = cellX * TREE_CELL_SIZE + Math.floor(this._hashRandom(cellX, cellZ, 401) * TREE_CELL_SIZE);
+          const jz = cellZ * TREE_CELL_SIZE + Math.floor(this._hashRandom(cellX, cellZ, 402) * TREE_CELL_SIZE);
+          const cellHasTree = this._hashRandom(cellX, cellZ, 403) < TREE_CELL_CHANCE;
+          if (cellHasTree && wx === jx && wz === jz) {
+            this._placeTree(data, lx, surfaceY + 1, lz, wx, wz);
+          }
+        }
+
+        // Caves: ridged "worm" tunnels (abs(noise) near zero) read as
+        // natural snaking passages rather than blobby "swiss cheese"
+        // carving. A separate, much lower-frequency noise field rarely
+        // opens a tunnel into a wide cavern instead. Caves are dry by
+        // default now — no automatic water/lava flooding — with only a
+        // very rare isolated deep lava pocket for flavor. A small
+        // fraction of columns allow their shaft to breach the surface.
+        const allowsSurfaceBreach = this._hashRandom(wx, wz, 777) < 0.015;
+        const caveCeiling = allowsSurfaceBreach
+          ? Math.min(surfaceY + 1, WORLD_HEIGHT - 1)
+          : Math.min(surfaceY - 2, WORLD_HEIGHT);
+
+        const cavernCellsThisColumn = [];
+
+        for (let y = 5; y < caveCeiling; y++) {
+          const tunnel = Math.abs(this.caveNoise.noise3D(wx * 0.05, y * 0.09, wz * 0.05));
+          const isTunnel = tunnel < 0.045;
+
+          const cavernVal = this.cavernNoise.noise3D(wx * 0.02, y * 0.025, wz * 0.02);
+          const isCavern = cavernVal > 0.8 && y < 40; // caverns only appear deep
+
+          if (!isTunnel && !isCavern) continue;
+
+          const current = this._getLocal(data, lx, y, lz);
+          if (current !== getBlock('stone').id && current !== getBlock('dirt').id) continue;
+
+          // Rare isolated deep lava pocket — not a blanket flood, just an
+          // occasional single-cell hazard, same spirit as vanilla lava
+          // pools deep underground.
+          const isRareLavaPocket = y < 8 && this._hashRandom(wx, wz, y + 9001) < 0.015;
+          this._setLocal(data, lx, y, lz, isRareLavaPocket ? getBlock('lava').id : getBlock('air').id);
+
+          if (isCavern && !isRareLavaPocket) cavernCellsThisColumn.push(y);
+        }
+
+        // Cavern walls get a boosted, localized ore/gem pass — carved
+        // cavern cells check their stone neighbors and sometimes turn
+        // them into ore right there, so caverns naturally read as richer
+        // than an ordinary tunnel instead of every column sharing one
+        // flat global ore rate.
+        for (const cy of cavernCellsThisColumn) {
+          for (const [dx, dy, dz] of CAVERN_WALL_OFFSETS) {
+            const nx = lx + dx, ny = cy + dy, nz = lz + dz;
+            if (nx < 0 || nx >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE || ny < 0 || ny >= WORLD_HEIGHT) continue;
+            if (this._getLocal(data, nx, ny, nz) !== getBlock('stone').id) continue;
+            const roll = this._hashRandom(wx + nx, wz + nz, ny + 4200);
+            if (roll > CAVERN_ORE_CHANCE) continue;
+            const ore = this._pickCavernOre(wx, wz, ny);
+            this._setLocal(data, nx, ny, nz, getBlock(ore).id);
           }
         }
 
@@ -198,8 +282,12 @@ export class World {
     return data;
   }
 
-  _placeTree(data, lx, baseY, lz) {
-    const height = 5 + Math.floor(Math.random() * 3); // 5-7 logs
+  _placeTree(data, lx, baseY, lz, wx, wz) {
+    // Deterministic (seeded) height instead of Math.random() — the old
+    // version silently broke the "identical regeneration from the same
+    // seed" guarantee described at the top of this file. Taller range
+    // (8-12 vs the old 5-7) per the request for taller trees.
+    const height = 8 + Math.floor(this._hashRandom(wx, wz, 555) * 5);
     for (let i = 0; i < height; i++) {
       this._setLocal(data, lx, baseY + i, lz, getBlock('wood_log').id);
     }
@@ -217,6 +305,17 @@ export class World {
         }
       }
     }
+  }
+
+  /** Weighted-random ore pick for cavern-wall seeding (see CAVERN_ORE_WEIGHTS). */
+  _pickCavernOre(wx, wz, y) {
+    const roll = this._hashRandom(wx, wz, y + 6600) * CAVERN_ORE_TOTAL_WEIGHT;
+    let acc = 0;
+    for (const entry of CAVERN_ORE_WEIGHTS) {
+      acc += entry.weight;
+      if (roll < acc) return entry.block;
+    }
+    return CAVERN_ORE_WEIGHTS[0].block;
   }
 
   /** Deterministic pseudo-random in [0,1) from world coords + salt (no Math.random dependency on seed). */
