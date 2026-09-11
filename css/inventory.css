@@ -1,5 +1,5 @@
 /* =========================================================
-   MossBox — Inventory, Crafting & Workstation UIs
+   MossBox â€” Inventory, Crafting & Workstation UIs
    ========================================================= */
 #inventory-screen, #workstation-screen {
   background: rgba(0, 0, 0, 0.35);
@@ -34,6 +34,26 @@
   position: absolute;
   inset: 5px;
   border-radius: 5px;
+}
+
+/* ---- Held-item cursor icon ---- */
+/* Follows the mouse while an item is "picked up" from a slot (see
+   ui/InventorySlots.js). Sits above the custom cursor so it reads as
+   "this is what you're carrying", not a replacement for the cursor. */
+#held-item-icon {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 10000;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+}
+#held-item-icon.hidden {
+  display: none;
 }
 
 .slot .slot-count {
