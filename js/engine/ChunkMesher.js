@@ -35,6 +35,17 @@ export class ChunkMesher {
     const group = new THREE.Group();
     group.name = `chunk_${cx}_${cz}`;
 
+    // Only scan the chunk's actual non-air y-range (plus one block of
+    // padding on each side so faces against the topmost/bottommost block
+    // still get a correct neighbor check) instead of the full 0..256 —
+    // this is most of the previous per-chunk mesh-build cost, since huge
+    // stretches of empty sky and buried stone never needed checking at
+    // all. A fully-air chunk (range === null) skips meshing entirely.
+    const range = world.getChunkYRange(cx, cz);
+    if (!range) return group;
+    const yStart = Math.max(0, range.minY - 1);
+    const yEnd = Math.min(WORLD_HEIGHT - 1, range.maxY + 1);
+
     // blockId -> { positions:[], normals:[], uvs:[] }
     const geometryBuckets = new Map();
 
@@ -45,7 +56,7 @@ export class ChunkMesher {
         const wx = cx * CHUNK_SIZE + lx;
         const wz = cz * CHUNK_SIZE + lz;
 
-        for (let y = 0; y < WORLD_HEIGHT; y++) {
+        for (let y = yStart; y <= yEnd; y++) {
           const id = data[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
           if (id === 0) continue; // air
 
