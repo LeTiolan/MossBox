@@ -1,5 +1,5 @@
 /* =========================================================
-   MossBox — Crafting Recipes
+   MossBox â€” Crafting Recipes
    Each recipe is a shape-matched grid (nulls = empty slot)
    plus a result. The crafting engine (engine/Crafting.js)
    normalizes the player's grid and compares it against these
@@ -11,6 +11,13 @@ export const RECIPES = [
   { grid: [['wood_log']], result: { item: 'planks', count: 4 } },
   { grid: [['planks'], ['planks']], result: { item: 'stick', count: 4 } },
   { grid: [['coal'], ['stick']], result: { item: 'torch', count: 4 } },
+  {
+    grid: [
+      ['iron_ingot', null, 'iron_ingot'],
+      [null, 'iron_ingot', null],
+    ],
+    result: { item: 'bucket', count: 1 },
+  },
 
   // ---- Blocks ----
   { grid: [['planks', 'planks'], ['planks', 'planks']], result: { item: 'crafting_table', count: 1 } },
