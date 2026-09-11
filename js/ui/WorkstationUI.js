@@ -12,7 +12,9 @@
    ========================================================= */
 
 import { matchRecipe, consumeOne } from '../engine/Crafting.js';
-import { buildSlotEl, renderPlayerGrids } from './InventorySlots.js';
+import { buildSlotEl, renderPlayerGrids, syncHeldCursorIcon } from './InventorySlots.js';
+import { getBlock } from '../config/blocks.js';
+import { showToast } from './Toast.js';
 
 export class WorkstationUI {
   constructor(inventory, { onClose } = {}) {
@@ -33,6 +35,11 @@ export class WorkstationUI {
   }
 
   close() {
+    if (this.held.current) {
+      this.inventory.addItem(this.held.current.item, this.held.current.count);
+      this.held.current = null;
+      syncHeldCursorIcon(this.held);
+    }
     this.screenEl.classList.add('hidden');
     this.onClose?.();
   }
@@ -92,6 +99,7 @@ export class WorkstationUI {
       if (!result) return;
       this.inventory.addItem(result.item, result.count);
       consumeOne(this.inventory.craftingGrid3x3);
+      showToast(`Crafted ${getBlock(result.item)?.name || result.item}`);
       this._render();
     });
     this.outputEl.appendChild(slotEl);
