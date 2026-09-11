@@ -30,7 +30,7 @@ export const BLOCKS = {
   lava:       { id: 11, name: 'Lava',       color: '#e0631f', solid: false, transparent: true, fluid: true, flowDistance: 3, lightLevel: 15, damage: 4, texture: 'lava' },
 
   wood_log:   { id: 12, name: 'Wood Log',   color: '#6b4a2b', solid: true,  texture: 'wood_log' },
-  leaves:     { id: 13, name: 'Leaves',     color: '#3f7a34', solid: true,  transparent: true, drops: 'apple', texture: 'leaves' },
+  leaves:     { id: 13, name: 'Leaves',     color: '#3f7a34', solid: true,  transparent: true, opacity: 0.18, drops: 'apple', texture: 'leaves' },
   tall_grass: { id: 14, name: 'Tall Grass', color: '#6fae4a', solid: false, cross: true, drops: 'wheat_seeds', texture: 'tall_grass' },
   flower_red: { id: 15, name: 'Red Flower', color: '#c1453d', solid: false, cross: true, texture: 'flower_red' },
   flower_yellow:{ id:16,name: 'Yellow Flower',color:'#e0c93f',solid: false, cross: true, texture: 'flower_yellow' },
